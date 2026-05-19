@@ -47,6 +47,15 @@ int cmd_event(int argc, char **argv) {
     read_battery(&b);
     read_ac(&a);
 
+    /* The kernel battery driver can return a stale energy_now reading
+       right after wake; wait briefly and re-read so the recorded value
+       reflects the post-resume state. */
+    if (strcmp(type, "resume") == 0 || strcmp(type, "boot") == 0) {
+        sleep(2);
+        read_battery(&b);
+        read_ac(&a);
+    }
+
     sqlite3 *db = NULL;
     int rc = 1;
     if (db_open_rw(db_path, &db) == 0) {

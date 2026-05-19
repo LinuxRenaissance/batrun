@@ -22,16 +22,19 @@ static const char SQL_HIST_RATE[] =
     "  WHERE ts >= ?1"
     "  WINDOW w AS (ORDER BY ts, id)"
     ")"
-    "SELECT COALESCE(SUM(prev_en - energy_now_uwh), 0),"
-    "       COALESCE(SUM(ts - prev_ts), 0),"
-    "       COUNT(*)"
+    "SELECT"
+    "  COALESCE(SUM(CASE WHEN prev_en > energy_now_uwh"
+    "                    THEN prev_en - energy_now_uwh ELSE 0 END), 0),"
+    "  COALESCE(SUM(CASE WHEN prev_en > energy_now_uwh"
+    "                    THEN ts - prev_ts ELSE 0 END), 0),"
+    "  COUNT(*),"
+    "  COALESCE(SUM(CASE WHEN prev_en > energy_now_uwh THEN 1 ELSE 0 END), 0)"
     "  FROM e"
     " WHERE prev_evt IN ('boot','resume','ac_off')"
     "   AND event_type IN ('sleep','shutdown','ac_on')"
     "   AND prev_ac = 0"
     "   AND prev_en IS NOT NULL"
     "   AND energy_now_uwh IS NOT NULL"
-    "   AND prev_en > energy_now_uwh"
     "   AND ts > prev_ts;";
 
 static void fmt_hm(double seconds, char *out, size_t outsz) {
@@ -100,7 +103,7 @@ int cmd_status(int argc, char **argv) {
 
     sqlite3_stmt *st = NULL;
     long long total_drain = 0, total_secs = 0;
-    int segments = 0;
+    int segments = 0, measurable = 0;
     if (sqlite3_prepare_v2(db, SQL_HIST_RATE, -1, &st, NULL) == SQLITE_OK) {
         time_t cutoff = now - (time_t)STATUS_HISTORY_DAYS * 86400;
         sqlite3_bind_int64(st, 1, (sqlite3_int64)cutoff);
@@ -108,14 +111,20 @@ int cmd_status(int argc, char **argv) {
             total_drain = sqlite3_column_int64(st, 0);
             total_secs  = sqlite3_column_int64(st, 1);
             segments    = sqlite3_column_int(st, 2);
+            measurable  = sqlite3_column_int(st, 3);
         }
         sqlite3_finalize(st);
     }
     db_close(db);
 
     printf("\nHistorical (last %d days)\n", STATUS_HISTORY_DAYS);
-    printf("  Awake-on-battery segments: %d\n", segments);
-    if (segments > 0 && total_secs > 0 && total_drain > 0) {
+    if (measurable < segments) {
+        printf("  Awake-on-battery segments: %d (%d with measurable drain)\n",
+               segments, measurable);
+    } else {
+        printf("  Awake-on-battery segments: %d\n", segments);
+    }
+    if (measurable > 0 && total_secs > 0 && total_drain > 0) {
         double avg_w = (double)total_drain / ((double)total_secs * 1e6) * 3600.0;
         printf("  Average draw:              %.2f W\n", avg_w);
         if (b.present && b.energy_full_uwh > 0) {

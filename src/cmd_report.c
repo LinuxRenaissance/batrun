@@ -11,9 +11,10 @@
 #define DEFAULT_WINDOW_DAYS 30
 
 typedef struct {
-    long long total_drain_uwh;
-    long long total_seconds;
-    int       segment_count;
+    long long total_drain_uwh;     /* sum across measurable segments */
+    long long total_seconds;       /* sum across measurable segments */
+    int       segment_count;       /* total structural segments */
+    int       measurable_count;    /* of those, with positive drain */
 } drain_stats;
 
 typedef struct {
@@ -34,16 +35,19 @@ static const char SQL_ACTIVE_DRAIN[] =
     "  WHERE ts >= ?1 AND ts < ?2"
     "  WINDOW w AS (ORDER BY ts, id)"
     ")"
-    "SELECT COALESCE(SUM(prev_en - energy_now_uwh), 0),"
-    "       COALESCE(SUM(ts - prev_ts), 0),"
-    "       COUNT(*)"
+    "SELECT"
+    "  COALESCE(SUM(CASE WHEN prev_en > energy_now_uwh"
+    "                    THEN prev_en - energy_now_uwh ELSE 0 END), 0),"
+    "  COALESCE(SUM(CASE WHEN prev_en > energy_now_uwh"
+    "                    THEN ts - prev_ts ELSE 0 END), 0),"
+    "  COUNT(*),"
+    "  COALESCE(SUM(CASE WHEN prev_en > energy_now_uwh THEN 1 ELSE 0 END), 0)"
     "  FROM e"
     " WHERE prev_evt IN ('boot','resume','ac_off')"
     "   AND event_type IN ('sleep','shutdown','ac_on')"
     "   AND prev_ac = 0"
     "   AND prev_en IS NOT NULL"
     "   AND energy_now_uwh IS NOT NULL"
-    "   AND prev_en > energy_now_uwh"
     "   AND ts > prev_ts;";
 
 static const char SQL_SUSPEND_DRAIN[] =
@@ -57,9 +61,13 @@ static const char SQL_SUSPEND_DRAIN[] =
     "  WHERE ts >= ?1 AND ts < ?2"
     "  WINDOW w AS (ORDER BY ts, id)"
     ")"
-    "SELECT COALESCE(SUM(prev_en - energy_now_uwh), 0),"
-    "       COALESCE(SUM(ts - prev_ts), 0),"
-    "       COUNT(*)"
+    "SELECT"
+    "  COALESCE(SUM(CASE WHEN prev_en > energy_now_uwh"
+    "                    THEN prev_en - energy_now_uwh ELSE 0 END), 0),"
+    "  COALESCE(SUM(CASE WHEN prev_en > energy_now_uwh"
+    "                    THEN ts - prev_ts ELSE 0 END), 0),"
+    "  COUNT(*),"
+    "  COALESCE(SUM(CASE WHEN prev_en > energy_now_uwh THEN 1 ELSE 0 END), 0)"
     "  FROM e"
     " WHERE prev_evt = 'sleep'"
     "   AND event_type = 'resume'"
@@ -67,7 +75,6 @@ static const char SQL_SUSPEND_DRAIN[] =
     "   AND ac_online = 0"
     "   AND prev_en IS NOT NULL"
     "   AND energy_now_uwh IS NOT NULL"
-    "   AND prev_en > energy_now_uwh"
     "   AND ts > prev_ts;";
 
 static const char SQL_LATEST_SNAPSHOT[] =
@@ -92,9 +99,10 @@ static int query_drain(sqlite3 *db, const char *sql,
     sqlite3_bind_int64(st, 2, (sqlite3_int64)to);
     int rc = sqlite3_step(st);
     if (rc == SQLITE_ROW) {
-        out->total_drain_uwh = sqlite3_column_int64(st, 0);
-        out->total_seconds   = sqlite3_column_int64(st, 1);
-        out->segment_count   = sqlite3_column_int(st, 2);
+        out->total_drain_uwh  = sqlite3_column_int64(st, 0);
+        out->total_seconds    = sqlite3_column_int64(st, 1);
+        out->segment_count    = sqlite3_column_int(st, 2);
+        out->measurable_count = sqlite3_column_int(st, 3);
     }
     sqlite3_finalize(st);
     return 0;
@@ -306,8 +314,15 @@ int cmd_report(int argc, char **argv) {
 
     putchar('\n');
     printf("Active use on battery\n");
-    printf("  Segments observed:    %d\n", active.segment_count);
-    if (active.segment_count > 0 && active.total_seconds > 0) {
+    if (active.segment_count > 0) {
+        if (active.measurable_count < active.segment_count) {
+            printf("  Segments observed:    %d (%d with measurable drain)\n",
+                   active.segment_count, active.measurable_count);
+        } else {
+            printf("  Segments observed:    %d\n", active.segment_count);
+        }
+    }
+    if (active.measurable_count > 0 && active.total_seconds > 0) {
         char dur[32];
         fmt_hm((double)active.total_seconds, dur, sizeof dur);
         double drain_wh = active.total_drain_uwh / 1e6;
@@ -324,14 +339,24 @@ int cmd_report(int argc, char **argv) {
             fmt_hm(secs_at_full, proj, sizeof proj);
             printf("  Projected at 100%%:    %s   <-- batrun estimate\n", proj);
         }
+    } else if (active.segment_count > 0) {
+        printf("  (drain below battery's reporting resolution -- "
+               "need longer awake-on-battery segments)\n");
     } else {
-        printf("  (no usable awake-on-battery segments in window yet)\n");
+        printf("  (no awake-on-battery segments in window yet)\n");
     }
 
     putchar('\n');
     printf("Standby (suspend-to-RAM)\n");
-    printf("  Segments observed:    %d\n", suspend.segment_count);
-    if (suspend.segment_count > 0 && suspend.total_seconds > 0) {
+    if (suspend.segment_count > 0) {
+        if (suspend.measurable_count < suspend.segment_count) {
+            printf("  Segments observed:    %d (%d with measurable drain)\n",
+                   suspend.segment_count, suspend.measurable_count);
+        } else {
+            printf("  Segments observed:    %d\n", suspend.segment_count);
+        }
+    }
+    if (suspend.measurable_count > 0 && suspend.total_seconds > 0) {
         char dur[32];
         fmt_hm((double)suspend.total_seconds, dur, sizeof dur);
         double drain_wh = suspend.total_drain_uwh / 1e6;
@@ -347,15 +372,18 @@ int cmd_report(int argc, char **argv) {
             double days = secs_at_full / 86400.0;
             printf("  Projected standby:    ~%.1f days at 100%%\n", days);
         }
+    } else if (suspend.segment_count > 0) {
+        printf("  (drain below battery's reporting resolution -- "
+               "need longer suspend segments)\n");
     } else {
-        printf("  (no usable suspend segments in window yet)\n");
+        printf("  (no suspend segments in window yet)\n");
     }
 
-    if (active.segment_count < 5) {
+    if (active.measurable_count < 5) {
         putchar('\n');
-        printf("Note: only %d awake-on-battery segment(s) -- "
-               "estimates will sharpen as data accumulates.\n",
-               active.segment_count);
+        printf("Note: only %d awake-on-battery segment(s) with measurable "
+               "drain -- estimates will sharpen as data accumulates.\n",
+               active.measurable_count);
     }
     return 0;
 }

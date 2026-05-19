@@ -1,3 +1,23 @@
+batrun (0.2.3-1) unstable; urgency=low
+
+  * On boot and resume events, wait 2s after the initial battery read
+    and re-read /sys before inserting the event. Works around the
+    kernel battery driver returning a stale energy_now right after
+    wake, which made long auto-suspends look like zero drain.
+
+ -- Jerko Čilaš <jerko@cilas.me>  Tue, 19 May 2026 21:45:00 +0000
+
+batrun (0.2.2-1) unstable; urgency=low
+
+  * Count structural segments separately from segments with measurable
+    drain. Reports now show "N (M with measurable drain)" when the
+    battery's reporting resolution swallows a segment's drain (typical
+    for short suspends or short awake bursts). Average draw and runtime
+    projections still derive only from measurable segments, so the
+    headline numbers are unchanged -- the count is just honest.
+
+ -- Jerko Čilaš <jerko@cilas.me>  Tue, 19 May 2026 21:30:00 +0000
+
 batrun (0.2.1-1) unstable; urgency=low
 
   * Print copyright and license header in `batrun version` and `batrun help`
