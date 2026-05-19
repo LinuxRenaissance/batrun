@@ -1,7 +1,17 @@
 #!/bin/sh
 # systemd-sleep hook: $1 = pre|post, $2 = suspend|hibernate|hybrid-sleep|suspend-then-hibernate
 case "$1" in
-    pre)  /usr/bin/batrun event sleep  ;;
-    post) /usr/bin/batrun event resume ;;
+    pre)
+        /usr/bin/batrun event sleep
+        ;;
+    post)
+        # Spawn in a transient systemd unit so the recorder gets its own
+        # cgroup. A plain background (& / setsid) inherits the hook
+        # cgroup, which systemd tears down as soon as this script exits
+        # -- killing the adaptive post-wake poll mid-run.
+        systemd-run --no-block --quiet --collect \
+            --description="batrun resume event recorder" \
+            /usr/bin/batrun event resume
+        ;;
 esac
 exit 0

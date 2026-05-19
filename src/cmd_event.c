@@ -47,12 +47,19 @@ int cmd_event(int argc, char **argv) {
     read_battery(&b);
     read_ac(&a);
 
-    /* The kernel battery driver can return a stale energy_now reading
-       right after wake; wait briefly and re-read so the recorded value
-       reflects the post-resume state. */
+    /* The kernel battery driver can return a stale energy_now for
+       several seconds after wake. Poll up to 10s, exiting as soon as
+       the value changes, so the recorded reading reflects post-resume
+       state instead of the pre-suspend cache. */
     if (strcmp(type, "resume") == 0 || strcmp(type, "boot") == 0) {
-        sleep(2);
-        read_battery(&b);
+        long long initial = b.energy_now_uwh;
+        if (initial >= 0) {
+            for (int i = 0; i < 10; i++) {
+                sleep(1);
+                read_battery(&b);
+                if (b.energy_now_uwh != initial) break;
+            }
+        }
         read_ac(&a);
     }
 
