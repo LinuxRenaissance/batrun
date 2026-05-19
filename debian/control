@@ -1,0 +1,24 @@
+Source: batrun
+Section: utils
+Priority: optional
+Maintainer: Jerko Čilaš <jerko@cilas.me>
+Build-Depends:
+ debhelper-compat (= 13),
+ libsqlite3-dev
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+
+Package: batrun
+Architecture: any
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends}
+Recommends: systemd, udev
+Description: battery intelligence, zero batshit
+ batrun records battery state on suspend, resume, boot, shutdown and
+ AC plug/unplug events into a local SQLite database so it can later
+ report realistic single-charge runtime derived from your actual usage
+ instead of the firmware's optimistic guess.
+ .
+ The recorder is invoked from hooks (systemd-sleep, a systemd oneshot
+ service, and a udev rule) so nothing runs between events.

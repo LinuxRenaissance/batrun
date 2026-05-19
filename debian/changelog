@@ -1,0 +1,24 @@
+batrun (0.2.1-1) unstable; urgency=low
+
+  * Print copyright and license header in `batrun version` and `batrun help`
+    (htop-style three-line banner).
+
+ -- Jerko Čilaš <jerko@cilas.me>  Tue, 19 May 2026 17:10:00 +0000
+
+batrun (0.2.0-1) unstable; urgency=low
+
+  * Add `batrun report` with --last/--since/--month/--year/--all windows.
+    Aggregates awake-on-battery drain into projected 100%-charge runtime,
+    reports suspend drain and battery health separately.
+  * Add `batrun status` showing current battery, instantaneous draw, and
+    projected remaining time using both `power_now` and a historical
+    30-day average.
+
+ -- Jerko Čilaš <jerko@cilas.me>  Tue, 19 May 2026 17:30:00 +0000
+
+batrun (0.1.0-1) unstable; urgency=low
+
+  * Initial release: event recorder with SQLite backend, systemd-sleep
+    hook, oneshot service for boot/shutdown, udev rule for AC events.
+
+ -- Jerko Čilaš <jerko@cilas.me>  Tue, 19 May 2026 16:30:00 +0000

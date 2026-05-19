@@ -1,0 +1,16 @@
+[Unit]
+Description=batrun boot/shutdown power event recorder
+DefaultDependencies=no
+RequiresMountsFor=/var/lib/batrun
+After=basic.target
+Before=shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/batrun event boot
+ExecStop=/usr/bin/batrun event shutdown
+
+[Install]
+WantedBy=multi-user.target

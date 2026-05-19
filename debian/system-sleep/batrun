@@ -1,0 +1,7 @@
+#!/bin/sh
+# systemd-sleep hook: $1 = pre|post, $2 = suspend|hibernate|hybrid-sleep|suspend-then-hibernate
+case "$1" in
+    pre)  /usr/bin/batrun event sleep  ;;
+    post) /usr/bin/batrun event resume ;;
+esac
+exit 0

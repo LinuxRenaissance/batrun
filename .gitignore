@@ -1,0 +1,12 @@
+/batrun
+src/*.o
+*.deb
+.c*
+*.buildinfo
+*.changes
+debian/.debhelper/
+debian/batrun/
+debian/*.debhelper*
+debian/batrun.substvars
+debian/files
+debian/debhelper-build-stamp
