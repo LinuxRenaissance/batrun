@@ -1,3 +1,12 @@
+batrun (0.2.8-1) unstable; urgency=low
+
+  * Fix dpkg -i hanging after "Created symlink for batrun.service":
+    the boot event no longer polls for gauge stabilisation (that poll
+    is only needed after resume from sleep). dpkg starts the service
+    synchronously, so the 300 s poll blocked the install.
+
+ -- Jerko Čilaš <jerko@cilas.me>  Thu, 21 May 2026 00:00:00 +0000
+
 batrun (0.2.7-1) unstable; urgency=low
 
   * Fix wildly inflated standby estimate caused by the ACPI battery
