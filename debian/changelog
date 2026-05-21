@@ -1,3 +1,14 @@
+batrun (0.2.7-1) unstable; urgency=low
+
+  * Fix wildly inflated standby estimate caused by the ACPI battery
+    driver returning a stale energy_now after long sleeps. The old poll
+    exited at the first change from the pre-sleep value, recording only
+    a fraction of the actual drain. The new poll waits until the gauge
+    has been stable for 5 consecutive seconds (up to 300 s), giving the
+    driver time to fully recalibrate regardless of sleep duration.
+
+ -- Jerko Čilaš <jerko@cilas.me>  Wed, 21 May 2026 10:00:00 +0000
+
 batrun (0.2.6-1) unstable; urgency=low
 
   * Run the post-wake recorder via `systemd-run --no-block` instead of

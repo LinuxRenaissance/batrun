@@ -47,18 +47,31 @@ int cmd_event(int argc, char **argv) {
     read_battery(&b);
     read_ac(&a);
 
-    /* The kernel battery driver can return a stale energy_now for
-       several seconds after wake. Poll up to 10s, exiting as soon as
-       the value changes, so the recorded reading reflects post-resume
-       state instead of the pre-suspend cache. */
+    /* The kernel battery driver returns a stale energy_now after wake.
+       For short sleeps the gauge recalibrates within seconds; for long
+       sleeps (hours) it can take a minute or more. Poll until the value
+       has been unchanged for STABLE_SECS consecutive reads (gauge has
+       settled) or MAX_POLL_SECS elapses, whichever comes first.
+       The recorder runs in a detached transient unit so this never
+       blocks the user's resume. */
     if (strcmp(type, "resume") == 0 || strcmp(type, "boot") == 0) {
-        long long initial = b.energy_now_uwh;
-        if (initial >= 0) {
-            for (int i = 0; i < 10; i++) {
+        if (b.energy_now_uwh >= 0) {
+#define MAX_POLL_SECS  300
+#define STABLE_SECS      5
+            long long last = b.energy_now_uwh;
+            int stable = 0;
+            for (int i = 0; i < MAX_POLL_SECS && stable < STABLE_SECS; i++) {
                 sleep(1);
                 read_battery(&b);
-                if (b.energy_now_uwh != initial) break;
+                if (b.energy_now_uwh == last)
+                    stable++;
+                else {
+                    stable = 0;
+                    last = b.energy_now_uwh;
+                }
             }
+#undef MAX_POLL_SECS
+#undef STABLE_SECS
         }
         read_ac(&a);
     }
