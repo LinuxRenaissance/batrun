@@ -1,3 +1,14 @@
+batrun (0.2.10-1) unstable; urgency=low
+
+  * Add standby accuracy warning: while fewer than 5 suspend segments
+    with measurable drain have been recorded, report warns that brief
+    partial charges during suspend go undetected and skew the estimate;
+    charging fully is noted as safe (detected and discarded automatically).
+  * Document the same limitation in README under a new "Standby
+    measurement accuracy" subsection.
+
+ -- Jerko Čilaš <jerko@cilas.me>  Fri, 22 May 2026 00:00:00 +0000
+
 batrun (0.2.9-1) unstable; urgency=low
 
   * Suppress bogus standby projection when fewer than 5 suspend segments

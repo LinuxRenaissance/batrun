@@ -391,5 +391,11 @@ int cmd_report(int argc, char **argv) {
                "drain -- estimates will sharpen as data accumulates.\n",
                active.measurable_count);
     }
+    if (suspend.measurable_count < 5) {
+        putchar('\n');
+        printf("Standby note: avoid plugging the charger in for short periods\n"
+               "while suspended -- partial top-ups go undetected and skew the\n"
+               "drain estimate. Charging fully is fine. See the project README.\n");
+    }
     return 0;
 }

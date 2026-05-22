@@ -158,6 +158,26 @@ Both endpoints must have `ac_online = 0` and a positive drain.
 Segments that span an AC event are discarded. Charging is never
 counted toward runtime estimates.
 
+### Standby measurement accuracy
+
+The suspend drain is measured as the difference in battery energy
+between the sleep event (recorded just before the system suspends) and
+the resume event (recorded after the gauge stabilises post-wake).
+
+Because the system is off during suspend, batrun has no visibility into
+AC events that occur while it sleeps. If the charger is plugged in
+briefly and removed before the laptop wakes, no `ac_on`/`ac_off` event
+is recorded. The partial top-up silently offsets the real consumption,
+making the drain reading lower than actual. There is no way to detect or
+correct this after the fact.
+
+**Charging fully while suspended is fine** — when the battery gains
+energy overall, batrun detects the net gain and discards that segment
+from the standby calculation automatically.
+
+**To preserve accurate standby measurements: avoid plugging the charger
+in for short periods while the laptop is suspended.**
+
 The projected runtime at 100% is computed using the *most recent*
 observed `energy_full` value, which tracks battery degradation over
 time. Historical drain rates are not rescaled to design capacity —
