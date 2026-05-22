@@ -1,3 +1,13 @@
+batrun (0.2.9-1) unstable; urgency=low
+
+  * Suppress bogus standby projection when fewer than 5 suspend segments
+    with measurable drain have been recorded; battery gauges with coarse
+    resolution produce implausibly long estimates (e.g. 584 days) from
+    just one or two short suspends. Output now shows how many more
+    segments are needed instead.
+
+ -- Jerko Čilaš <jerko@cilas.me>  Fri, 22 May 2026 00:00:00 +0000
+
 batrun (0.2.8-1) unstable; urgency=low
 
   * Fix dpkg -i hanging after "Created symlink for batrun.service":

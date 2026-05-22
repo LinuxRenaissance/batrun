@@ -1,7 +1,7 @@
 #ifndef BATRUN_COMMON_H
 #define BATRUN_COMMON_H
 
-#define BATRUN_VERSION "0.2.8"
+#define BATRUN_VERSION "0.2.9"
 
 #define BATRUN_TAGLINE   "battery intelligence, zero batshit"
 #define BATRUN_COPYRIGHT "(C) 2026 Jerko \xC4\x8Cila\xC5\xA1 (Linux Renaissance)"

@@ -366,11 +366,17 @@ int cmd_report(int argc, char **argv) {
         printf("  Total drained:        %.3f Wh\n", drain_wh);
         printf("  Average draw:         %.4f W\n", avg_w);
         if (snap.have_data && snap.energy_full_uwh > 0) {
-            double secs_at_full =
-                (double)snap.energy_full_uwh /
-                ((double)suspend.total_drain_uwh / (double)suspend.total_seconds);
-            double days = secs_at_full / 86400.0;
-            printf("  Projected standby:    ~%.1f days at 100%%\n", days);
+            if (suspend.measurable_count >= 5) {
+                double secs_at_full =
+                    (double)snap.energy_full_uwh /
+                    ((double)suspend.total_drain_uwh / (double)suspend.total_seconds);
+                double days = secs_at_full / 86400.0;
+                printf("  Projected standby:    ~%.1f days at 100%%\n", days);
+            } else {
+                printf("  Projected standby:    (need %d more segment(s) "
+                       "with measurable drain)\n",
+                       5 - suspend.measurable_count);
+            }
         }
     } else if (suspend.segment_count > 0) {
         printf("  (drain below battery's reporting resolution -- "
