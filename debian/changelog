@@ -1,3 +1,22 @@
+batrun (0.3-1) unstable; urgency=low
+
+  * Remove standby (suspend-to-RAM) drain tracking entirely.
+    The feature measured drain as the energy difference between the sleep
+    and resume events. Because the system is off during suspend, any AC
+    event that occurs while it sleeps goes unrecorded: a brief partial
+    charge silently offsets the real consumption, producing a drain reading
+    lower than actual with no way to detect or correct it after the fact.
+    On the developer's own hardware, the battery gauge also lacked the
+    resolution to measure small suspend drains reliably (reporting ~5 mW
+    average draw, an implausible 1000:1 ratio vs. active use). A feature
+    that cannot be personally verified and guaranteed correct should not
+    be shipped. The SQL query, output section, and all related warnings
+    have been removed. Sleep and resume events continue to be recorded
+    as they bound the awake-on-battery segments used for active-use
+    drain calculations.
+
+ -- Jerko Čilaš <jerko@cilas.me>  Fri, 23 May 2026 00:00:00 +0000
+
 batrun (0.2.10-1) unstable; urgency=low
 
   * Add standby accuracy warning: while fewer than 5 suspend segments

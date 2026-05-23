@@ -50,32 +50,6 @@ static const char SQL_ACTIVE_DRAIN[] =
     "   AND energy_now_uwh IS NOT NULL"
     "   AND ts > prev_ts;";
 
-static const char SQL_SUSPEND_DRAIN[] =
-    "WITH e AS ("
-    "  SELECT ts, event_type, ac_online, energy_now_uwh,"
-    "         LAG(ts)             OVER w AS prev_ts,"
-    "         LAG(event_type)     OVER w AS prev_evt,"
-    "         LAG(ac_online)      OVER w AS prev_ac,"
-    "         LAG(energy_now_uwh) OVER w AS prev_en"
-    "  FROM events"
-    "  WHERE ts >= ?1 AND ts < ?2"
-    "  WINDOW w AS (ORDER BY ts, id)"
-    ")"
-    "SELECT"
-    "  COALESCE(SUM(CASE WHEN prev_en > energy_now_uwh"
-    "                    THEN prev_en - energy_now_uwh ELSE 0 END), 0),"
-    "  COALESCE(SUM(CASE WHEN prev_en > energy_now_uwh"
-    "                    THEN ts - prev_ts ELSE 0 END), 0),"
-    "  COUNT(*),"
-    "  COALESCE(SUM(CASE WHEN prev_en > energy_now_uwh THEN 1 ELSE 0 END), 0)"
-    "  FROM e"
-    " WHERE prev_evt = 'sleep'"
-    "   AND event_type = 'resume'"
-    "   AND prev_ac = 0"
-    "   AND ac_online = 0"
-    "   AND prev_en IS NOT NULL"
-    "   AND energy_now_uwh IS NOT NULL"
-    "   AND ts > prev_ts;";
 
 static const char SQL_LATEST_SNAPSHOT[] =
     "SELECT energy_full_uwh, energy_design_uwh, cycle_count"
@@ -278,9 +252,8 @@ int cmd_report(int argc, char **argv) {
     sqlite3 *db = NULL;
     if (db_open_ro(db_path, &db) != 0) return 1;
 
-    drain_stats active, suspend;
-    if (query_drain(db, SQL_ACTIVE_DRAIN,  from, to, &active)  != 0 ||
-        query_drain(db, SQL_SUSPEND_DRAIN, from, to, &suspend) != 0) {
+    drain_stats active;
+    if (query_drain(db, SQL_ACTIVE_DRAIN, from, to, &active) != 0) {
         db_close(db);
         return 1;
     }
@@ -346,56 +319,11 @@ int cmd_report(int argc, char **argv) {
         printf("  (no awake-on-battery segments in window yet)\n");
     }
 
-    putchar('\n');
-    printf("Standby (suspend-to-RAM)\n");
-    if (suspend.segment_count > 0) {
-        if (suspend.measurable_count < suspend.segment_count) {
-            printf("  Segments observed:    %d (%d with measurable drain)\n",
-                   suspend.segment_count, suspend.measurable_count);
-        } else {
-            printf("  Segments observed:    %d\n", suspend.segment_count);
-        }
-    }
-    if (suspend.measurable_count > 0 && suspend.total_seconds > 0) {
-        char dur[32];
-        fmt_hm((double)suspend.total_seconds, dur, sizeof dur);
-        double drain_wh = suspend.total_drain_uwh / 1e6;
-        double avg_w    = suspend.total_drain_uwh /
-                          ((double)suspend.total_seconds * 1e6) * 3600.0;
-        printf("  Suspend time:         %s observed\n", dur);
-        printf("  Total drained:        %.3f Wh\n", drain_wh);
-        printf("  Average draw:         %.4f W\n", avg_w);
-        if (snap.have_data && snap.energy_full_uwh > 0) {
-            if (suspend.measurable_count >= 5) {
-                double secs_at_full =
-                    (double)snap.energy_full_uwh /
-                    ((double)suspend.total_drain_uwh / (double)suspend.total_seconds);
-                double days = secs_at_full / 86400.0;
-                printf("  Projected standby:    ~%.1f days at 100%%\n", days);
-            } else {
-                printf("  Projected standby:    (need %d more segment(s) "
-                       "with measurable drain)\n",
-                       5 - suspend.measurable_count);
-            }
-        }
-    } else if (suspend.segment_count > 0) {
-        printf("  (drain below battery's reporting resolution -- "
-               "need longer suspend segments)\n");
-    } else {
-        printf("  (no suspend segments in window yet)\n");
-    }
-
     if (active.measurable_count < 5) {
         putchar('\n');
         printf("Note: only %d awake-on-battery segment(s) with measurable "
                "drain -- estimates will sharpen as data accumulates.\n",
                active.measurable_count);
-    }
-    if (suspend.measurable_count < 5) {
-        putchar('\n');
-        printf("Standby note: avoid plugging the charger in for short periods\n"
-               "while suspended -- partial top-ups go undetected and skew the\n"
-               "drain estimate. Charging fully is fine. See the project README.\n");
     }
     return 0;
 }

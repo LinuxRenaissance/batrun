@@ -9,8 +9,7 @@ optimistic guess at full charge.
 It records battery state on sleep, resume, boot, shutdown and AC
 plug/unplug into a local SQLite database, then computes the average
 discharge rate across only the *awake-on-battery* segments of your
-day. Charging periods are excluded. Suspend drain is tracked
-separately so you can see how much standby costs you.
+day. Charging periods are excluded.
 
 ## How it works
 
@@ -103,8 +102,6 @@ The report shows:
 
 * **Active use on battery** — total awake-on-battery time, energy
   drained, average draw, and projected runtime at full charge.
-* **Standby (suspend-to-RAM)** — total suspend time, energy drained,
-  projected days of standby at full charge.
 * **Battery health** — current full charge vs design capacity, and
   the most recent cycle count.
 
@@ -151,32 +148,10 @@ to extract clean drain measurements:
 
 * `boot | resume | ac_off` → `sleep | shutdown | ac_on` — an
   **awake-on-battery segment**, used to compute active-use drain rate
-* `sleep` → `resume` — a **standby segment**, used to compute
-  suspend drain rate
 
 Both endpoints must have `ac_online = 0` and a positive drain.
 Segments that span an AC event are discarded. Charging is never
 counted toward runtime estimates.
-
-### Standby measurement accuracy
-
-The suspend drain is measured as the difference in battery energy
-between the sleep event (recorded just before the system suspends) and
-the resume event (recorded after the gauge stabilises post-wake).
-
-Because the system is off during suspend, batrun has no visibility into
-AC events that occur while it sleeps. If the charger is plugged in
-briefly and removed before the laptop wakes, no `ac_on`/`ac_off` event
-is recorded. The partial top-up silently offsets the real consumption,
-making the drain reading lower than actual. There is no way to detect or
-correct this after the fact.
-
-**Charging fully while suspended is fine** — when the battery gains
-energy overall, batrun detects the net gain and discards that segment
-from the standby calculation automatically.
-
-**To preserve accurate standby measurements: avoid plugging the charger
-in for short periods while the laptop is suspended.**
 
 The projected runtime at 100% is computed using the *most recent*
 observed `energy_full` value, which tracks battery degradation over
