@@ -191,6 +191,7 @@ static void print_usage(FILE *out) {
         "  --month YYYY-MM         calendar month\n"
         "  --year  YYYY            calendar year\n"
         "  --all                   all recorded data\n"
+        "  --bare                  print only the projected runtime (for status bars)\n"
         "  (default: --last 30d)\n",
         out);
 }
@@ -200,6 +201,7 @@ int cmd_report(int argc, char **argv) {
     time_t from = now - (time_t)DEFAULT_WINDOW_DAYS * 86400;
     time_t to   = now;
     char   label[128];
+    int    bare = 0;
     snprintf(label, sizeof label, "last %d days", DEFAULT_WINDOW_DAYS);
 
     for (int i = 1; i < argc; i++) {
@@ -236,6 +238,8 @@ int cmd_report(int argc, char **argv) {
             from = 0;
             to   = now;
             snprintf(label, sizeof label, "all data");
+        } else if (strcmp(a, "--bare") == 0) {
+            bare = 1;
         } else if (strcmp(a, "--help") == 0 || strcmp(a, "-h") == 0) {
             print_usage(stdout);
             return 0;
@@ -259,8 +263,23 @@ int cmd_report(int argc, char **argv) {
     }
     battery_snapshot snap;
     query_snapshot(db, &snap);
-    int total_events = query_event_count(db, from, to);
+    int total_events = bare ? 0 : query_event_count(db, from, to);
     db_close(db);
+
+    if (bare) {
+        if (active.measurable_count > 0 && active.total_seconds > 0 &&
+            snap.have_data && snap.energy_full_uwh > 0) {
+            double secs_at_full =
+                (double)snap.energy_full_uwh /
+                ((double)active.total_drain_uwh / (double)active.total_seconds);
+            char proj[32];
+            fmt_hm(secs_at_full, proj, sizeof proj);
+            printf("%s\n", proj);
+        } else {
+            printf("-\n");
+        }
+        return 0;
+    }
 
     char from_s[32], to_s[32];
     fmt_iso(from, from_s, sizeof from_s);

@@ -52,7 +52,7 @@ int cmd_event(int argc, char **argv) {
        reads or MAX_POLL_SECS elapses, whichever comes first. */
     if (strcmp(type, "resume") == 0) {
         if (b.energy_now_uwh >= 0) {
-#define MAX_POLL_SECS  300
+#define MAX_POLL_SECS   30
 #define STABLE_SECS      5
             long long last = b.energy_now_uwh;
             int stable = 0;

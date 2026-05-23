@@ -1,3 +1,20 @@
+batrun (0.4-1) unstable; urgency=low
+
+  * Add --bare flag to "batrun report": prints only the projected
+    full-charge runtime on a single line (e.g. "9h 46m"), or "-" if
+    there is not enough data yet. Designed for status bar integration;
+    combinable with all window options (--last, --since, --month, etc.).
+    README now includes usage examples for waybar, Hyprland/swaybar/i3bar,
+    KDE Plasma, and GNOME.
+  * Reduce post-resume gauge stabilisation poll from 300 s to 30 s.
+    The 300 s cap was sized for standby drain measurement (removed in 0.3),
+    where a stale reading on a 100 mWh-range signal was critical. For
+    active-use drain the same stale reading is a small fraction of the
+    segment total; 30 s covers all realistic hardware without keeping a
+    transient systemd unit alive for up to five minutes after every wake.
+
+ -- Jerko Čilaš <jerko@cilas.me>  Fri, 23 May 2026 00:00:00 +0000
+
 batrun (0.3-1) unstable; urgency=low
 
   * Remove standby (suspend-to-RAM) drain tracking entirely.

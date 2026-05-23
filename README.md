@@ -93,6 +93,7 @@ batrun report --since 2026-01-01    # since a specific date
 batrun report --month 2026-05       # calendar month
 batrun report --year  2025          # calendar year
 batrun report --all                 # everything in the DB
+batrun report --bare                # single line: projected runtime only
 ```
 
 Duration units for `--last`: `h` hours, `d` days, `w` weeks,
@@ -107,6 +108,35 @@ The report shows:
 
 Early estimates will be noisy. They sharpen as data accumulates —
 expect useful projections after roughly a week of normal use.
+
+### Status bar integration
+
+`--bare` outputs a single line with just the projected full-charge
+runtime (e.g. `9h 46m`), or `-` if there is not enough data yet.
+Combine it with any window option. It is designed to be consumed by
+status bars and panel widgets.
+
+**waybar** — add to `~/.config/waybar/config`:
+
+```json
+"custom/battery-life": {
+    "exec": "batrun report --bare",
+    "interval": 3600,
+    "format": "🔋 {}"
+}
+```
+
+**Hyprland / swaybar / i3bar** — call from your bar script:
+
+```sh
+batrun report --bare
+```
+
+**KDE Plasma** — use a *Command Output* widget with the command
+`batrun report --bare` and a refresh interval of 3600 seconds.
+
+**GNOME** — use an extension that runs shell commands, such as
+*Command Menu* or *TopHat*, pointed at `batrun report --bare`.
 
 ### `batrun event <type>`
 
