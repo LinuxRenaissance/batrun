@@ -1,3 +1,18 @@
+batrun (0.5-1) unstable; urgency=low
+
+  * Include the current in-progress on-battery session in the drain
+    estimate shown by "batrun report". The last event in the window is
+    checked: if it is a segment-start type (boot, resume, ac_off) on
+    battery, the live battery reading is compared against it. If AC is
+    not connected, drain is positive, and the session is at least 10
+    minutes old, the session is folded into the active drain average.
+    Nothing is written to the database; the adjustment is ephemeral and
+    recalculated on every invocation. The report notes how long the
+    current session has been running. Useful for new users who would
+    otherwise see no projection until their first completed segment.
+
+ -- Jerko Čilaš <jerko@cilas.me>  Fri, 23 May 2026 00:00:00 +0000
+
 batrun (0.4-1) unstable; urgency=low
 
   * Add --bare flag to "batrun report": prints only the projected

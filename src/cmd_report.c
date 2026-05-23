@@ -1,6 +1,7 @@
 #include "cmd_report.h"
 #include "common.h"
 #include "db.h"
+#include "power_supply.h"
 
 #include <sqlite3.h>
 #include <stdio.h>
@@ -50,6 +51,49 @@ static const char SQL_ACTIVE_DRAIN[] =
     "   AND energy_now_uwh IS NOT NULL"
     "   AND ts > prev_ts;";
 
+
+/* Finds the last event in the window to detect an open (in-progress) segment. */
+static const char SQL_LAST_IN_WINDOW[] =
+    "SELECT ts, event_type, ac_online, energy_now_uwh"
+    "  FROM events"
+    " WHERE ts >= ?1 AND ts < ?2"
+    " ORDER BY ts DESC, id DESC"
+    " LIMIT 1;";
+
+#define OPEN_SEG_MIN_SECS 600  /* 10 minutes */
+
+typedef struct {
+    time_t    start_ts;
+    long long start_energy_uwh;
+    int       found;
+} open_seg_info;
+
+static int query_open_seg(sqlite3 *db, time_t from, time_t to,
+                          open_seg_info *out) {
+    memset(out, 0, sizeof *out);
+    sqlite3_stmt *st = NULL;
+    if (sqlite3_prepare_v2(db, SQL_LAST_IN_WINDOW, -1, &st, NULL) != SQLITE_OK)
+        return -1;
+    sqlite3_bind_int64(st, 1, (sqlite3_int64)from);
+    sqlite3_bind_int64(st, 2, (sqlite3_int64)to);
+    if (sqlite3_step(st) == SQLITE_ROW) {
+        time_t    ts    = (time_t)sqlite3_column_int64(st, 0);
+        const char *et  = (const char *)sqlite3_column_text(st, 1);
+        int        ac   = sqlite3_column_int(st, 2);
+        long long  en   = sqlite3_column_type(st, 3) != SQLITE_NULL
+                          ? sqlite3_column_int64(st, 3) : -1;
+        int is_start = et && (strcmp(et, "boot")   == 0 ||
+                              strcmp(et, "resume") == 0 ||
+                              strcmp(et, "ac_off") == 0);
+        if (is_start && ac == 0 && en >= 0) {
+            out->start_ts         = ts;
+            out->start_energy_uwh = en;
+            out->found            = 1;
+        }
+    }
+    sqlite3_finalize(st);
+    return 0;
+}
 
 static const char SQL_LATEST_SNAPSHOT[] =
     "SELECT energy_full_uwh, energy_design_uwh, cycle_count"
@@ -263,8 +307,30 @@ int cmd_report(int argc, char **argv) {
     }
     battery_snapshot snap;
     query_snapshot(db, &snap);
+    open_seg_info open_seg = {0};
+    if (to >= now)
+        query_open_seg(db, from, to, &open_seg);
     int total_events = bare ? 0 : query_event_count(db, from, to);
     db_close(db);
+
+    /* If an open session exists, check live battery state and fold it in. */
+    int open_included = 0;
+    long long open_secs = 0;
+    if (open_seg.found) {
+        battery_info b; ac_info a;
+        read_battery(&b);
+        read_ac(&a);
+        long long dur = (long long)(now - open_seg.start_ts);
+        if (!a.online && b.energy_now_uwh >= 0 &&
+            b.energy_now_uwh < open_seg.start_energy_uwh &&
+            dur >= OPEN_SEG_MIN_SECS) {
+            active.total_drain_uwh  += open_seg.start_energy_uwh - b.energy_now_uwh;
+            active.total_seconds    += dur;
+            active.measurable_count += 1;
+            open_included = 1;
+            open_secs     = dur;
+        }
+    }
 
     if (bare) {
         if (active.measurable_count > 0 && active.total_seconds > 0 &&
@@ -308,10 +374,13 @@ int cmd_report(int argc, char **argv) {
     printf("Active use on battery\n");
     if (active.segment_count > 0) {
         if (active.measurable_count < active.segment_count) {
-            printf("  Segments observed:    %d (%d with measurable drain)\n",
-                   active.segment_count, active.measurable_count);
+            printf("  Segments observed:    %d (%d with measurable drain)%s\n",
+                   active.segment_count, active.measurable_count,
+                   open_included ? " + current session" : "");
         } else {
-            printf("  Segments observed:    %d\n", active.segment_count);
+            printf("  Segments observed:    %d%s\n",
+                   active.segment_count,
+                   open_included ? " + current session" : "");
         }
     }
     if (active.measurable_count > 0 && active.total_seconds > 0) {
@@ -330,6 +399,10 @@ int cmd_report(int argc, char **argv) {
             char proj[32];
             fmt_hm(secs_at_full, proj, sizeof proj);
             printf("  Projected at 100%%:    %s   <-- batrun estimate\n", proj);
+            if (open_included) {
+                char odur[32]; fmt_hm((double)open_secs, odur, sizeof odur);
+                printf("  (current session:     %s included in estimate)\n", odur);
+            }
         }
     } else if (active.segment_count > 0) {
         printf("  (drain below battery's reporting resolution -- "
